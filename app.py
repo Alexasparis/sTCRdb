@@ -89,7 +89,13 @@ if len(event.selection["rows"]) > 0:
         st.dataframe(selected_row.drop(labels=['PDB URL']).T, use_container_width=True)
     with col_b:
         st_molstar_remote(pdb_url, height=500)
-        st.link_button("⬇️ Download PDB file", pdb_url)
+        st.markdown(f"""
+        <a href="{pdb_url}" download="{pdb_url.split('/')[-1]}" target="_blank">
+            <button style="background-color: #007BFF; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
+                ⬇️ Download {pdb_url.split('/')[-1]}
+            </button>
+        </a>
+    """, unsafe_allow_html=True)
 # Exportar
 file_name = f"stcrdb_data_{datetime.now().strftime('%Y-%m-%d')}.csv"
 st.download_button(label="Export Data as CSV", data=df_filtered.to_csv(index=False), file_name=file_name, mime="text/csv")
