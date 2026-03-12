@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from streamlit_molstar import st_molstar
+from streamlit_molstar import st_molstar_remote
 from datetime import datetime
 
 st.set_page_config(page_title="sTCRdb", layout="wide")
@@ -89,7 +89,7 @@ if len(event.selection["rows"]) > 0:
         st.dataframe(selected_row.drop(labels=['PDB URL']).T, use_container_width=True)
     with col_b:
         # 
-        st_molstar(pdb_url, height=500)
+        st_molstar_remote(pdb_url, height=500)
 
 # Exportar
 file_name = f"stcrdb_data_{datetime.now().strftime('%Y-%m-%d')}.csv"
