@@ -88,9 +88,8 @@ if len(event.selection["rows"]) > 0:
         st.write("### Model Metrics")
         st.dataframe(selected_row.drop(labels=['PDB URL']).T, use_container_width=True)
     with col_b:
-        # 
         st_molstar_remote(pdb_url, height=500)
-
+        st.link_button("⬇️ Download PDB file", pdb_url)
 # Exportar
 file_name = f"stcrdb_data_{datetime.now().strftime('%Y-%m-%d')}.csv"
 st.download_button(label="Export Data as CSV", data=df_filtered.to_csv(index=False), file_name=file_name, mime="text/csv")
