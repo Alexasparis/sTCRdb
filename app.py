@@ -3,6 +3,7 @@ import pandas as pd
 import sqlite3
 from streamlit_molstar import st_molstar_remote
 from datetime import datetime
+import requests
 
 st.set_page_config(page_title="sTCRdb", layout="wide")
 
@@ -89,13 +90,18 @@ if len(event.selection["rows"]) > 0:
         st.dataframe(selected_row.drop(labels=['PDB URL']).T, use_container_width=True)
     with col_b:
         st_molstar_remote(pdb_url, height=500)
-        st.markdown(f"""
-        <a href="{pdb_url}" download="{pdb_url.split('/')[-1]}" style="text-decoration: none;">
-            <div style="background-color: #007BFF; color: white; padding: 10px 20px; border-radius: 5px; text-align: center; cursor: pointer; font-family: sans-serif;">
-                ⬇️ Force Download {pdb_url.split('/')[-1]}
-            </div>
-        </a>
-    """, unsafe_allow_html=True)
+    
+    # 1. Fetch the file content in the background
+    response = requests.get(pdb_url)
+    
+    # 2. Use Streamlit's native download button
+    # This forces the browser to treat the data as a downloadable attachment
+    st.download_button(
+        label="⬇️ Download PDB File",
+        data=response.content,
+        file_name=f"{selected_row['TCR ID']}_{int(selected_row['Model Number'])}.pdb",
+        mime="chemical/x-pdb"
+    )
 # Exportar
 file_name = f"stcrdb_data_{datetime.now().strftime('%Y-%m-%d')}.csv"
 st.download_button(label="Export Data as CSV", data=df_filtered.to_csv(index=False), file_name=file_name, mime="text/csv")
