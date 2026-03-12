@@ -90,10 +90,10 @@ if len(event.selection["rows"]) > 0:
     with col_b:
         st_molstar_remote(pdb_url, height=500)
         st.markdown(f"""
-        <a href="{pdb_url}" download="{pdb_url.split('/')[-1]}" target="_blank">
-            <button style="background-color: #007BFF; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
-                ⬇️ Download {pdb_url.split('/')[-1]}
-            </button>
+        <a href="{pdb_url}" download="{pdb_url.split('/')[-1]}" style="text-decoration: none;">
+            <div style="background-color: #007BFF; color: white; padding: 10px 20px; border-radius: 5px; text-align: center; cursor: pointer; font-family: sans-serif;">
+                ⬇️ Force Download {pdb_url.split('/')[-1]}
+            </div>
         </a>
     """, unsafe_allow_html=True)
 # Exportar
