@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🧬 sTCRdb - Synthetic TCR Database</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/ag-grid-community@32.0.0/dist/ag-grid-community.min.js"></script>
+    <style>
+        #molstar-viewer {width:100% !important;height:500px !important;border:none !important;border-radius:8px;}
+        .ag-theme-alpine {--ag-header-height:48px;}
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="app-container" class="container mx-auto p-6 max-w-7xl"></div>
+    <script type="module">
+        class TCRApp {
+            constructor() { this.data = []; this.selectedRow = null; this.filters = {}; this.init(); }
+
+            async init() {
+                await this.render();
+                await this.loadData();
+                this.setupEventListeners();
+            }
+
+            async render() {
+                document.getElementById('app-container').innerHTML = `
+                    <div class="mb-8">
+                        <h1 class="text-4xl font-bold text-blue-600 mb-4">🧬 sTCRdb - Synthetic TCR Database</h1>
+                        <p class="text-xl text-gray-600">Browse and analyze synthetic TCR-pMHC models</p>
+                    </div>
+
+                    <div class="bg-white shadow-md rounded-lg p-6 mb-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-2xl font-semibold text-gray-800">🔍 Filters</h2>
+                            <div class="flex gap-3">
+                                <button id="apply-filters" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium">Apply</button>
+                                <a id="export-csv" href="/api/export" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-medium inline-flex items-center">⬇️ CSV</a>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            <div><label class="block text-sm font-medium text-gray-700 mb-2">Model Numbers</label>
+                                <select id="model-numbers" multiple class="w-full p-3 border border-gray-300 rounded-lg">
+                                    <option value="0" selected>Model 0</option><option value="1" selected>Model 1</option>
+                                    <option value="2" selected>Model 2</option><option value="3" selected>Model 3</option><option value="4" selected>Model 4</option>
+                                </select>
+                            </div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-2">Complex pLDDT ≥</label>
+                                <input type="range" id="complex-plddt" min="0" max="100" value="0" step="1" class="w-full">
+                                <div class="text-sm text-gray-500 mt-1" id="complex-plddt-val">0</div>
+                            </div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-2">iPTM Mean ≥</label>
+                                <input type="range" id="iptm-mean" min="0" max="1" step="0.01" value="0" class="w-full">
+                                <div class="text-sm text-gray-500 mt-1" id="iptm-mean-val">0.00</div>
+                            </div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-2">pDockQ ≥</label>
+                                <input type="range" id="pdockq" min="0" max="1" step="0.01" value="0" class="w-full">
+                                <div class="text-sm text-gray-500 mt-1" id="pdockq-val">0.00</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white shadow-md rounded-lg overflow-hidden">
+                        <div class="p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+                            <h2 id="table-title" class="text-2xl font-semibold text-gray-800">📊 Loading models...</h2>
+                        </div>
+                        <div id="data-grid" class="ag-theme-alpine" style="height: 600px;"></div>
+                    </div>
+
+                    <div id="model-detail" class="mt-8 hidden bg-white shadow-xl rounded-lg p-8">
+                        <div class="flex justify-between items-start mb-6">
+                            <div><h3 id="model-title" class="text-3xl font-bold text-blue-600"></h3>
+                                <p id="model-subtitle" class="text-xl text-gray-600 mt-1"></p>
+                            </div>
+                            <a id="download-pdb" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium inline-flex items-center">⬇️ Download PDB</a>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div><h4 class="text-xl font-semibold mb-6 text-gray-800">📈 Model Metrics</h4>
+                                <div id="model-metrics" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"></div>
+                            </div>
+                            <div><h4 class="text-xl font-semibold mb-6 text-gray-800">🧬 3D Viewer</h4>
+                                <iframe id="molstar-viewer" src="" 
+                                style="width:100%;height:500px;border:none;border-radius:8px;background:#1a1a1a;" 
+                                frameborder="0">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            setupEventListeners() {
+                document.getElementById('apply-filters').addEventListener('click', () => this.loadData());
+                ['complex-plddt', 'iptm-mean', 'pdockq'].forEach(id => {
+                    const slider = document.getElementById(id);
+                    const val = document.getElementById(id + '-val');
+                    slider.addEventListener('input', () => {
+                        val.textContent = id === 'iptm-mean' || id === 'pdockq' ? parseFloat(slider.value).toFixed(2) : slider.value;
+                    });
+                });
+            }
+
+            async loadData() {
+                const modelNumbers = Array.from(document.getElementById('model-numbers').selectedOptions).map(opt => parseInt(opt.value));
+                const params = new URLSearchParams({
+                    'model_numbers': modelNumbers.join(','),
+                    'complex_plddt': document.getElementById('complex-plddt').value,
+                    'iptm_mean': document.getElementById('iptm-mean').value,
+                    'pdockq': document.getElementById('pdockq').value
+                });
+
+                const response = await fetch(`/api/data?${params}`);
+                const result = await response.json();
+                this.data = result.data;
+                document.getElementById('table-title').textContent = `📊 ${result.total_count} Models`;
+                this.renderGrid();
+            }
+
+            renderGrid() {
+                const gridDiv = document.getElementById('data-grid');
+                if (window.agGrid?.api) window.agGrid.api.destroy();
+
+                const columnDefs = Object.keys(this.data[0] || {}).map(col => ({
+                    field: col, sortable: true, filter: true, resizable: true,
+                    width: col.length > 10 ? 150 : 120,
+                    cellRenderer: params => typeof params.value === 'number' ? params.value.toFixed(3) : params.value
+                }));
+
+                const rowData = this.data.map((row, index) => ({...row, _index: index}));
+                const gridOptions = {
+                    columnDefs, rowData, rowSelection: 'single',
+                    onRowClicked: event => this.selectRow(event.data._index),
+                    defaultColDef: {flex: 1, minWidth: 100, resizable: true},
+                    animateRows: true
+                };
+                new agGrid.Grid(gridDiv, gridOptions);
+            }
+
+            async selectRow(index) {
+                console.log('🎯 Selecting index:', index);
+                const response = await fetch(`/api/model/${index}`);
+                const model = await response.json();
+                
+                document.getElementById('model-title').textContent = `🎯 ${model.display_name}`;
+                document.getElementById('model-subtitle').textContent = `TCR ID: ${model.data['TCR ID']}, Model: ${model.data['Model Number']}`;
+                
+                const metricsDiv = document.getElementById('model-metrics');
+                metricsDiv.innerHTML = Object.entries(model.data)
+                    .filter(([key]) => key !== 'PDB URL')
+                    .map(([key, value]) => `
+                        <div class="flex justify-between p-3 bg-gray-50 rounded-lg">
+                            <span class="font-medium text-gray-700">${key}:</span>
+                            <span class="font-semibold text-gray-900">${typeof value === 'number' ? value.toFixed(3) : value}</span>
+                        </div>
+                    `).join('');
+
+                document.getElementById('download-pdb').href = `/api/pdb/${index}`;
+                document.getElementById('download-pdb').download = `${model.display_name}.pdb`;
+                
+                // ✅ MOLSTAR VIEWER FIJO
+                const iframe = document.getElementById('molstar-viewer');
+                iframe.src = `/viewer/${index}`;
+                
+                document.getElementById('model-detail').classList.remove('hidden');
+            }
+        }
+        new TCRApp();
+    </script>
+</body>
+</html>
